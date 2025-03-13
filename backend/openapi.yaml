@@ -1,0 +1,153 @@
+openapi: 3.0.0
+info:
+  title: Product Management API
+  version: 1.0.0
+  description: API для управления товарами
+servers:
+  - url: http://localhost:3000
+paths:
+  /products:
+    get:
+      summary: Получить список товаров
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+
+    post:
+      summary: Создать новый товар
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewProduct'
+      responses:
+        '201':
+          description: Товар создан
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+
+  /products/{id}:
+    get:
+      summary: Получить товар по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Товар не найден
+
+    put:
+      summary: Обновить товар по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewProduct'
+      responses:
+        '200':
+          description: Товар обновлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Product'
+        '404':
+          description: Товар не найден
+
+    delete:
+      summary: Удалить товар по ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Товар удален
+        '404':
+          description: Товар не найден
+
+  /products/category/{category}:
+    get:
+      summary: Получить товары по категории
+      parameters:
+        - name: category
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Product'
+        '404':
+          description: Товары не найдены
+
+components:
+  schemas:
+    Product:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        price:
+          type: number
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+      required:
+        - id
+        - name
+        - price
+
+    NewProduct:
+      type: object
+      properties:
+        name:
+          type: string
+        price:
+          type: number
+        description:
+          type: string
+        categories:
+          type: array
+          items:
+            type: string
+      required:
+        - name
+        - price
