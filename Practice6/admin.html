@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Админ-панель</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+
+        .admin-container {
+            display: flex;
+            gap: 30px;
+        }
+
+        .section {
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        input, button {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        .chat-messages {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Панель администратора</h1>
+
+    <div class="admin-container">
+        <!-- Управление товарами -->
+        <div class="section" style="flex: 2">
+            <h2>Добавить товар</h2>
+            <input id="name" placeholder="Название">
+            <input id="price" type="number" placeholder="Цена">
+            <input id="categories" placeholder="Категории через запятую">
+            <button onclick="addProduct()">Добавить</button>
+
+            <h2 style="margin-top: 30px">Редактировать товар</h2>
+            <input id="editId" type="number" placeholder="ID товара">
+            <button onclick="loadProduct()">Загрузить</button>
+            <div id="editSection" style="display: none; margin-top: 10px">
+                <input id="editName" placeholder="Название">
+                <input id="editPrice" type="number" placeholder="Цена">
+                <input id="editCategories" placeholder="Категории через запятую">
+                <button onclick="updateProduct()">Сохранить</button>
+            </div>
+
+            <div id="productList" style="margin-top: 20px"></div>
+        </div>
+
+        <!-- Чат -->
+        <div class="section" style="flex: 1">
+            <h2>Чат с покупателями</h2>
+            <div class="chat-messages" id="chatMessages"></div>
+            <input type="text" id="messageInput" placeholder="Ваше сообщение...">
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+      // WebSocket соединение
+      const socket = new WebSocket('ws://localhost:8080');
+  
+      // Обработка сообщений
+      socket.onmessage = function(event) {
+          try {
+              const message = JSON.parse(event.data);
+              
+              // Проверка наличия обязательных полей
+              if (!message.user || !message.text) {
+                  throw new Error("Некорректный формат сообщения");
+              }
+  
+              const chat = document.getElementById('chatMessages');
+              chat.innerHTML += `<div><strong>${message.user}:</strong> ${message.text}</div>`;
+              chat.scrollTop = chat.scrollHeight;
+              
+          } catch(error) {
+              console.error('Ошибка обработки сообщения:', error);
+              // Дополнительно: показать пользователю сообщение об ошибке
+          }
+      };
+  
+      // Управление товарами
+      async function loadProducts() {
+          try {
+              const response = await fetch('/products');
+              const products = await response.json();
+              
+              const container = document.getElementById('productList');
+              container.innerHTML = '';
+              
+              products.forEach(product => {
+                  container.innerHTML += `
+                      <div style="margin: 10px 0; padding: 10px; border: 1px solid #eee">
+                          <h3>${product.name} (ID: ${product.id})</h3>
+                          <p>Цена: ${product.price} руб.</p>
+                          <p>Категории: ${product.categories.join(', ')}</p>
+                          <button onclick="deleteProduct(${product.id})">Удалить</button>
+                      </div>
+                  `;
+              });
+          } catch(error) {
+              alert('Ошибка загрузки товаров');
+          }
+      }
+  
+      async function addProduct() {
+          const newProduct = {
+              name: document.getElementById('name').value,
+              price: document.getElementById('price').value,
+              categories: document.getElementById('categories').value.split(',').map(s => s.trim())
+          };
+  
+          try {
+              await fetch('/products', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(newProduct)
+              });
+              loadProducts();
+          } catch(error) {
+              alert('Ошибка добавления товара');
+          }
+      }
+  
+      async function deleteProduct(id) {
+          if(!confirm('Удалить товар?')) return;
+          try {
+              await fetch(`/products/${id}`, { method: 'DELETE' });
+              loadProducts();
+          } catch(error) {
+              alert('Ошибка удаления');
+          }
+      }
+  
+      async function loadProduct() {
+          try {
+              const product = await fetch(`/products/${document.getElementById('editId').value}`)
+                  .then(res => res.json());
+              
+              document.getElementById('editName').value = product.name;
+              document.getElementById('editPrice').value = product.price;
+              document.getElementById('editCategories').value = product.categories.join(', ');
+              document.getElementById('editSection').style.display = 'block';
+          } catch(error) {
+              alert('Товар не найден');
+          }
+      }
+  
+      async function updateProduct() {
+          try {
+              const updatedProduct = {
+                  name: document.getElementById('editName').value,
+                  price: document.getElementById('editPrice').value,
+                  categories: document.getElementById('editCategories').value.split(',').map(s => s.trim())
+              };
+  
+              await fetch(`/products/${document.getElementById('editId').value}`, {
+                  method: 'PUT',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(updatedProduct)
+              });
+              loadProducts();
+          } catch(error) {
+              alert('Ошибка обновления');
+          }
+      }
+  
+      // Отправка сообщений
+      function sendMessage() {
+          const input = document.getElementById('messageInput');
+          const text = input.value.trim();
+  
+          if (!text) {
+              alert("Пожалуйста, введите сообщение!");
+              return;
+          }
+  
+          try {
+              socket.send(JSON.stringify({
+                  user: 'Админ', // Явно указываем отправителя
+                  text: text,
+                  timestamp: new Date().toISOString() // Добавляем временную метку
+              }));
+              input.value = '';
+          } catch (error) {
+              console.error('Ошибка отправки:', error);
+              alert("Не удалось отправить сообщение");
+          }
+      }
+  
+      // Загружаем товары при старте
+      loadProducts();
+  </script>
+</body>
+</html>

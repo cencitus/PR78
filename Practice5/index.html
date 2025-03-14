@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Музыкальные инструменты</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .message { margin: 8px 0; padding: 8px; background: #f1f1f1; border-radius: 5px; }
+        .error-message { color: #ff4444; padding: 5px; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <h1>Музыкальные инструменты</h1>
+    </header>
+
+    <main class="main-content">
+        <!-- Секция каталога -->
+        <section class="catalog">
+            <h2 class="section-title">Каталог</h2>
+            <div id="productsContainer" class="products-grid"></div>
+        </section>
+
+        <!-- Секция чата -->
+        <section class="support-chat">
+            <h2 class="section-title">Чат поддержки</h2>
+            <div id="chatMessages" class="chat-messages"></div>
+            <input type="text" id="messageInput" placeholder="Ваше сообщение...">
+            <button onclick="sendMessage()">Отправить</button>
+        </section>
+    </main>
+
+    <script>
+        // WebSocket соединение
+        const socket = new WebSocket('ws://localhost:8080');
+        
+        // Обработчики WebSocket
+        socket.onopen = () => {
+            console.log('Соединение с чатом установлено');
+        };
+
+        socket.onmessage = (event) => {
+            try {
+                const message = JSON.parse(event.data);
+                
+                // Проверка структуры сообщения
+                if (!message.user || !message.text) {
+                    throw new Error('Некорректное сообщение');
+                }
+
+                const container = document.getElementById('chatMessages');
+                container.innerHTML += `
+                    <div class="message">
+                        <strong>${message.user}:</strong> ${message.text}
+                    </div>
+                `;
+                container.scrollTop = container.scrollHeight;
+
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showError('Не удалось прочитать сообщение');
+            }
+        };
+
+        // Функция отправки сообщений
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+
+            if (!text) {
+                showError('Введите сообщение!');
+                return;
+            }
+
+            try {
+                socket.send(JSON.stringify({
+                    user: 'Покупатель', // Важное отличие от админа!
+                    text: text,
+                    timestamp: new Date().toISOString()
+                }));
+                input.value = '';
+            } catch (error) {
+                console.error('Ошибка отправки:', error);
+                showError('Не удалось отправить сообщение');
+            }
+        }
+
+        // Загрузка товаров через GraphQL
+        async function loadProducts() {
+            const query = `{
+                products {
+                    name
+                    price
+                    categories
+                }
+            }`;
+
+            try {
+                const response = await fetch('/graphql', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query })
+                });
+
+                const { data, errors } = await response.json();
+                
+                if (errors) throw errors[0];
+                
+                if (data.products.length === 0) {
+                    showEmptyState();
+                    return;
+                }
+
+                renderProducts(data.products);
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showError('Не удалось загрузить каталог');
+            }
+        }
+
+        // Отображение товаров
+        function renderProducts(products) {
+            const container = document.getElementById('productsContainer');
+            container.innerHTML = products.map(product => `
+                <article class="product-card">
+                    <h3>${product.name}</h3>
+                    <p>Цена: ${product.price.toLocaleString()} ₽</p>
+                    <div class="categories">
+                        Категории: ${product.categories.join(', ')}
+                    </div>
+                </article>
+            `).join('');
+        }
+
+        // Вспомогательные функции
+        function showEmptyState() {
+            document.getElementById('productsContainer').innerHTML = `
+                <div class="empty-state">
+                    Товаров нет в наличии
+                </div>
+            `;
+        }
+
+
+        // Инициализация
+        loadProducts();
+    </script>
+</body>
+</html>
